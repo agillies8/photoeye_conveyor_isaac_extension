@@ -17,8 +17,11 @@ from omni.isaac.ui.element_wrappers.core_connectors import LoadButton, ResetButt
 from omni.isaac.ui.ui_utils import get_style
 from omni.usd import StageEventType
 from pxr import Sdf, UsdLux
+import omni.isaac.core.utils.stage as stage_utils
 
 from .scenario import FrankaRmpFlowExampleScript
+from pathlib import Path
+from omni.isaac.ui.ui_utils import LABEL_WIDTH, get_style, setup_ui_headers
 
 
 class UIBuilder:
@@ -34,6 +37,7 @@ class UIBuilder:
         # Run initialization for the provided example
         self._on_init()
 
+        self.num_rays = 2
     ###################################################################################
     #           The Functions Below Are Called Automatically By extension.py
     ###################################################################################
@@ -93,6 +97,25 @@ class UIBuilder:
         """
         world_controls_frame = CollapsableFrame("World Controls", collapsed=False)
 
+        self.beam_hit_labels = []
+        self.linear_depth_labels = []
+        self.hit_pos_labels = []
+
+        self.colors = [
+            0xFFBBBBFF,
+            0xFFBBFFBB,
+            0xBBFFBBBB,
+            0xBBAAEEFF,
+            0xAABBFFEE,
+            0xFFEEAABB,
+            0xFFC8D5D0,
+            0xFFC89BD0,
+            0xFFAF9BA7,
+            0xFFA4B99A,
+        ]
+
+        style = {"background_color": 0xFF888888, "color": 0xFF333333, "secondary_color": self.colors[0]}
+
         with world_controls_frame:
             with ui.VStack(style=get_style(), spacing=5, height=0):
                 self._load_btn = LoadButton(
@@ -122,6 +145,61 @@ class UIBuilder:
                 self._scenario_state_btn.enabled = False
                 self.wrapped_ui_elements.append(self._scenario_state_btn)
 
+        #adding sensor frame here:
+
+        sensor_frame = ui.CollapsableFrame(
+                        title="Sensor Readingss",
+                        height=0,
+                        collapsed=False,
+                        style=get_style(),
+                        style_type_name_override="CollapsableFrame",
+                        horizontal_scrollbar_policy=ui.ScrollBarPolicy.SCROLLBAR_AS_NEEDED,
+                        vertical_scrollbar_policy=ui.ScrollBarPolicy.SCROLLBAR_ALWAYS_ON
+                        )
+
+        with sensor_frame:
+            with ui.VStack(style=get_style(), spacing=5):
+                for i in range(self.num_rays):
+                    # Displaying light beam number and data for each light beam
+                    with ui.HStack():
+                        ui.Label(
+                            f"Lightbeam {i+1}",
+                            width=LABEL_WIDTH / 2,
+                            tooltip="Light beam number",
+                            style={"secondary_color": self.colors[i]},
+                        )
+
+                        # Displaying beam hit status (initially empty, to be updated in _on_update)
+                        self.beam_hit_labels.append(
+                            ui.Label(
+                                "",
+                                width=LABEL_WIDTH / 1.7,
+                                tooltip="beam hit t/f",
+                                style={"secondary_color": self.colors[i]},
+                            )
+                        )
+
+                        # Displaying linear depth (initially empty, to be updated in _on_update)
+                        self.linear_depth_labels.append(
+                            ui.Label(
+                                "",
+                                width=LABEL_WIDTH * 1.3,
+                                tooltip="linear depth in meters",
+                                style={"secondary_color": self.colors[i]},
+                            )
+                        )
+
+                        # Displaying hit position with specific labels for x, y, and z (initially empty, to be updated in _on_update)
+                        self.hit_pos_labels.append(
+                            ui.Label(
+                                "",
+                                width=LABEL_WIDTH,
+                                tooltip="hit position in meters",
+                                style={"secondary_color": self.colors[i]},
+                            )
+                        )
+
+
     ######################################################################################
     # Functions Below This Point Support The Provided Example And Can Be Deleted/Replaced
     ######################################################################################
@@ -146,8 +224,20 @@ class UIBuilder:
         On pressing the Load Button, a new instance of World() is created and then this function is called.
         The user should now load their assets onto the stage and add them to the World Scene.
         """
-        create_new_stage()
-        self._add_light_to_stage()
+        #create_new_stage()
+        #self._add_light_to_stage()
+
+
+        # Relative path to the assets folder
+        relative_path = Path("agg_omni_extensions/photoeye_conveyor_isaac_extension/usd/conveyor_photoeye_box.usd")
+
+        # Convert to absolute path
+        absolute_path = relative_path.resolve()
+
+        stage_utils.add_reference_to_stage(
+            usd_path="/home/agillies8/agg_omni_extensions/photoeye_conveyor_isaac_extension/usd/conveyor_photoeye_box.usd",
+            prim_path="/World"
+            )
 
         loaded_objects = self._scenario.load_example_assets()
 

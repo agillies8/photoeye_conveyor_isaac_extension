@@ -41,8 +41,48 @@ class FrankaRmpFlowExampleScript:
         they will be returned on reset.
         """
 
+        scene_prim_path = "/panda"
+        path_to_robot_usd = get_assets_root_path() + "/Isaac/Robots/Franka/franka.usd"
+
+        add_reference_to_stage(path_to_robot_usd, robot_prim_path)
+        self._articulation = Articulation(robot_prim_path)
+
+        add_reference_to_stage(get_assets_root_path() + "/Isaac/Props/UIElements/frame_prim.usd", "/World/target")
+        self._target = XFormPrim(
+            "/World/target",
+            scale=[0.04, 0.04, 0.04],
+            position=np.array([0.4, 0, 0.25]),
+            orientation=euler_angles_to_quats([0, np.pi, 0]),
+        )
+
+        self._obstacles = [
+            FixedCuboid(
+                name="ob1",
+                prim_path="/World/obstacle_1",
+                scale=np.array([0.03, 1.0, 0.3]),
+                position=np.array([0.25, 0.25, 0.15]),
+                color=np.array([0.0, 0.0, 1.0]),
+            ),
+            FixedCuboid(
+                name="ob2",
+                prim_path="/World/obstacle_2",
+                scale=np.array([0.5, 0.03, 0.3]),
+                position=np.array([0.5, 0.25, 0.15]),
+                color=np.array([0.0, 0.0, 1.0]),
+            ),
+        ]
+
+        self._goal_block = DynamicCuboid(
+            name="Cube",
+            position=np.array([0.4, 0, 0.025]),
+            prim_path="/World/pick_cube",
+            size=0.05,
+            color=np.array([1, 0, 0]),
+        )
+        self._ground_plane = GroundPlane("/World/Ground")
+
         # Return assets that were added to the stage so that they can be registered with the core.World
-        return []
+        return self._articulation, self._target, *self._obstacles, self._goal_block, self._ground_plane
 
     def setup(self):
         """
@@ -51,7 +91,17 @@ class FrankaRmpFlowExampleScript:
         # Set a camera view that looks good
         set_camera_view(eye=[2, 0.8, 1], target=[0, 0, 0], camera_prim_path="/OmniverseKit_Persp")
 
+        # Loading RMPflow can be done quickly for supported robots
+        rmp_config = load_supported_motion_policy_config("Franka", "RMPflow")
 
+        # Initialize an RmpFlow object
+        self._rmpflow = RmpFlow(**rmp_config)
+
+        for obstacle in self._obstacles:
+            self._rmpflow.add_obstacle(obstacle)
+
+        # Use the ArticulationMotionPolicy wrapper object to connect rmpflow to the Franka robot articulation.
+        self._articulation_rmpflow = ArticulationMotionPolicy(self._articulation, self._rmpflow)
 
         # Create a script generator to execute my_script().
         self._script_generator = self.my_script()
