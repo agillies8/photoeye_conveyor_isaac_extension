@@ -19,10 +19,12 @@ from omni.usd import StageEventType
 from pxr import Sdf, UsdLux
 import omni.isaac.core.utils.stage as stage_utils
 
-from .scenario import FrankaRmpFlowExampleScript
+from .scenario import PhotoeyeConveyorScript
 from pathlib import Path
 from omni.isaac.ui.ui_utils import LABEL_WIDTH, get_style, setup_ui_headers
-
+from omni.isaac.sensor import _sensor
+import omni.physx as _physx
+import omni
 
 class UIBuilder:
     def __init__(self):
@@ -37,7 +39,7 @@ class UIBuilder:
         # Run initialization for the provided example
         self._on_init()
 
-        self.num_rays = 2
+        self.num_rays = 3
     ###################################################################################
     #           The Functions Below Are Called Automatically By extension.py
     ###################################################################################
@@ -97,6 +99,11 @@ class UIBuilder:
         """
         world_controls_frame = CollapsableFrame("World Controls", collapsed=False)
 
+        self._ls = _sensor.acquire_lightbeam_sensor_interface()
+
+        self._timeline = omni.timeline.get_timeline_interface()
+        self.sub = _physx.get_physx_interface().subscribe_physics_step_events(self._on_update)
+
         self.beam_hit_labels = []
         self.linear_depth_labels = []
         self.hit_pos_labels = []
@@ -148,7 +155,7 @@ class UIBuilder:
         #adding sensor frame here:
 
         sensor_frame = ui.CollapsableFrame(
-                        title="Sensor Readingss",
+                        title="Sensor Readings",
                         height=0,
                         collapsed=False,
                         style=get_style(),
@@ -204,10 +211,41 @@ class UIBuilder:
     # Functions Below This Point Support The Provided Example And Can Be Deleted/Replaced
     ######################################################################################
 
+    #on update is added from lightbeam_sensor example
+    def _on_update(self, dt):
+        if self._timeline.is_playing():
+            lin_depth = [
+                self._ls.get_linear_depth_data(self._scenario.sensor_1_path),
+                self._ls.get_linear_depth_data(self._scenario.sensor_2_path),
+                self._ls.get_linear_depth_data(self._scenario.sensor_3_path)
+            ]
+
+            hit_pos = [
+                self._ls.get_hit_pos_data(self._scenario.sensor_1_path),
+                self._ls.get_hit_pos_data(self._scenario.sensor_2_path),
+                self._ls.get_hit_pos_data(self._scenario.sensor_3_path)
+            ]
+
+            # cast from uint8 to bool
+            beam_hit = [
+                self._ls.get_beam_hit_data(self._scenario.sensor_1_path).astype(bool),
+                self._ls.get_beam_hit_data(self._scenario.sensor_2_path).astype(bool),
+                self._ls.get_beam_hit_data(self._scenario.sensor_3_path).astype(bool)
+            ]
+
+            for i in range(self.num_rays):
+
+                # Update UI labels with the new data
+                self.beam_hit_labels[i].text = f"beamhit: {beam_hit[i]}"
+                self.linear_depth_labels[i].text = f"linearDepth: {lin_depth[i]}"
+                #self.hit_pos_labels[
+                #    i
+                #].text = f"hitPos x: {hit_pos[i][0]}, hitPos y: {hit_pos[i][1]}, hitPos z: {hit_pos[i][2]}"
+
     def _on_init(self):
         self._articulation = None
         self._cuboid = None
-        self._scenario = FrankaRmpFlowExampleScript()
+        self._scenario = PhotoeyeConveyorScript()
 
     def _add_light_to_stage(self):
         """

@@ -20,16 +20,20 @@ from omni.isaac.motion_generation import ArticulationMotionPolicy, RmpFlow
 from omni.isaac.motion_generation.interface_config_loader import load_supported_motion_policy_config
 from omni.isaac.nucleus import get_assets_root_path
 
+import omni
+import omni.graph.core as og
+import omni.kit.commands
+from pxr import Gf, Sdf, UsdGeom, UsdLux, UsdPhysics
+import carb
 
-class FrankaRmpFlowExampleScript:
+class PhotoeyeConveyorScript:
     def __init__(self):
-        self._rmpflow = None
-        self._articulation_rmpflow = None
-
-        self._articulation = None
-        self._target = None
 
         self._script_generator = None
+        self.sensor_1_path = "/World/Sensors/LightBeam_Sensor"
+        self.sensor_2_path = "/World/Sensors/LightBeam_Sensor_01"
+        self.sensor_3_path = "/World/Sensors/LightBeam_Sensor_02"
+
 
     def load_example_assets(self):
         """Load assets onto the stage and return them so they can be registered with the
@@ -49,9 +53,122 @@ class FrankaRmpFlowExampleScript:
         This function is called after assets have been loaded from ui_builder._setup_scenario().
         """
         # Set a camera view that looks good
-        set_camera_view(eye=[2, 0.8, 1], target=[0, 0, 0], camera_prim_path="/OmniverseKit_Persp")
+        set_camera_view(eye=[25, 1.1, 3.5], target=[21.1, -0.64, 1.96], camera_prim_path="/OmniverseKit_Persp")
 
 
+        result1, sensor1 = omni.kit.commands.execute(
+            "IsaacSensorCreateLightBeamSensor",
+            path=self.sensor_1_path,
+            parent=None,
+            min_range=0.2,
+            max_range=10.0,
+            translation=Gf.Vec3d(0, 0, 0),
+            orientation=Gf.Quatd(1, 0, 0, 0),
+            forward_axis=Gf.Vec3d(1, 0, 0),
+            num_rays=5,
+            curtain_length=0.5,
+        )
+
+        if not result1:
+            carb.log_error("Could not create Light Beam Sensor")
+            return
+
+        result2, sensor2 = omni.kit.commands.execute(
+            "IsaacSensorCreateLightBeamSensor",
+            path=self.sensor_2_path,
+            parent=None,
+            min_range=0.2,
+            max_range=10.0,
+            translation=Gf.Vec3d(0, 0, 0),
+            orientation=Gf.Quatd(1, 0, 0, 0),
+            forward_axis=Gf.Vec3d(1, 0, 0),
+            num_rays=5,
+            curtain_length=0.5,
+        )
+
+        if not result2:
+            carb.log_error("Could not create Light Beam Sensor")
+            return
+
+        result3, sensor3 = omni.kit.commands.execute(
+            "IsaacSensorCreateLightBeamSensor",
+            path=self.sensor_3_path,
+            parent=None,
+            min_range=0.2,
+            max_range=10.0,
+            translation=Gf.Vec3d(0, 0, 0),
+            orientation=Gf.Quatd(1, 0, 0, 0),
+            forward_axis=Gf.Vec3d(1, 0, 0),
+            num_rays=5,
+            curtain_length=0.5,
+        )
+
+        if not result3:
+            carb.log_error("Could not create Light Beam Sensor")
+            return
+
+        (self.action_graph1, new_nodes, _, _) = og.Controller.edit(
+            {"graph_path": "/ActionGraph_1", "evaluator_name": "execution"},
+            {
+                og.Controller.Keys.CREATE_NODES: [
+                    ("OnPlaybackTick", "omni.graph.action.OnPlaybackTick"),
+                    ("IsaacReadLightBeam", "omni.isaac.sensor.IsaacReadLightBeam"),
+                    ("DebugDrawRayCast", "omni.isaac.debug_draw.DebugDrawRayCast"),
+                ],
+                og.Controller.Keys.SET_VALUES: [
+                    ("IsaacReadLightBeam.inputs:lightbeamPrim", self.sensor_1_path),
+                ],
+                og.Controller.Keys.CONNECT: [
+                    ("OnPlaybackTick.outputs:tick", "IsaacReadLightBeam.inputs:execIn"),
+                    ("IsaacReadLightBeam.outputs:execOut", "DebugDrawRayCast.inputs:exec"),
+                    ("IsaacReadLightBeam.outputs:beamOrigins", "DebugDrawRayCast.inputs:beamOrigins"),
+                    ("IsaacReadLightBeam.outputs:beamEndPoints", "DebugDrawRayCast.inputs:beamEndPoints"),
+                    ("IsaacReadLightBeam.outputs:numRays", "DebugDrawRayCast.inputs:numRays"),
+                ],
+            },
+        )
+
+        (self.action_graph2, new_nodes, _, _) = og.Controller.edit(
+            {"graph_path": "/ActionGraph_2", "evaluator_name": "execution"},
+            {
+                og.Controller.Keys.CREATE_NODES: [
+                    ("OnPlaybackTick", "omni.graph.action.OnPlaybackTick"),
+                    ("IsaacReadLightBeam", "omni.isaac.sensor.IsaacReadLightBeam"),
+                    ("DebugDrawRayCast", "omni.isaac.debug_draw.DebugDrawRayCast"),
+                ],
+                og.Controller.Keys.SET_VALUES: [
+                    ("IsaacReadLightBeam.inputs:lightbeamPrim", self.sensor_2_path),
+                ],
+                og.Controller.Keys.CONNECT: [
+                    ("OnPlaybackTick.outputs:tick", "IsaacReadLightBeam.inputs:execIn"),
+                    ("IsaacReadLightBeam.outputs:execOut", "DebugDrawRayCast.inputs:exec"),
+                    ("IsaacReadLightBeam.outputs:beamOrigins", "DebugDrawRayCast.inputs:beamOrigins"),
+                    ("IsaacReadLightBeam.outputs:beamEndPoints", "DebugDrawRayCast.inputs:beamEndPoints"),
+                    ("IsaacReadLightBeam.outputs:numRays", "DebugDrawRayCast.inputs:numRays"),
+                ],
+            },
+        )
+
+        (self.action_graph3, new_nodes, _, _) = og.Controller.edit(
+            {"graph_path": "/ActionGraph_3", "evaluator_name": "execution"},
+            {
+                og.Controller.Keys.CREATE_NODES: [
+                    ("OnPlaybackTick", "omni.graph.action.OnPlaybackTick"),
+                    ("IsaacReadLightBeam", "omni.isaac.sensor.IsaacReadLightBeam"),
+                    ("DebugDrawRayCast", "omni.isaac.debug_draw.DebugDrawRayCast"),
+                ],
+                og.Controller.Keys.SET_VALUES: [
+                    ("IsaacReadLightBeam.inputs:lightbeamPrim", self.sensor_3_path),
+                ],
+                og.Controller.Keys.CONNECT: [
+                    ("OnPlaybackTick.outputs:tick", "IsaacReadLightBeam.inputs:execIn"),
+                    ("IsaacReadLightBeam.outputs:execOut", "DebugDrawRayCast.inputs:exec"),
+                    ("IsaacReadLightBeam.outputs:beamOrigins", "DebugDrawRayCast.inputs:beamOrigins"),
+                    ("IsaacReadLightBeam.outputs:beamEndPoints", "DebugDrawRayCast.inputs:beamEndPoints"),
+                    ("IsaacReadLightBeam.outputs:numRays", "DebugDrawRayCast.inputs:numRays"),
+                ],
+            },
+        )
 
         # Create a script generator to execute my_script().
         self._script_generator = self.my_script()
@@ -87,53 +204,10 @@ class FrankaRmpFlowExampleScript:
             return True
 
     def my_script(self):
-        translation_target, orientation_target = self._target.get_world_pose()
-
-        yield from self.close_gripper_franka(self._articulation)
-
-        # Notice that subroutines can still use return statements to exit.  goto_position() returns a boolean to indicate success.
-        success = yield from self.goto_position(
-            translation_target, orientation_target, self._articulation, self._rmpflow, timeout=200
-        )
-
-        if not success:
-            print("Could not reach target position")
-            return
-
-        yield from self.open_gripper_franka(self._articulation)
-
-        # Visualize the new target.
-        lower_translation_target = np.array([0.4, 0, 0.04])
-        self._target.set_world_pose(lower_translation_target, orientation_target)
-
-        success = yield from self.goto_position(
-            lower_translation_target, orientation_target, self._articulation, self._rmpflow, timeout=250
-        )
-
-        yield from self.close_gripper_franka(self._articulation, close_position=np.array([0.02, 0.02]), atol=0.006)
-
-        high_translation_target = np.array([0.4, 0, 0.4])
-        self._target.set_world_pose(high_translation_target, orientation_target)
-
-        success = yield from self.goto_position(
-            high_translation_target, orientation_target, self._articulation, self._rmpflow, timeout=200
-        )
-
-        next_translation_target = np.array([0.4, 0.4, 0.4])
-        self._target.set_world_pose(next_translation_target, orientation_target)
-
-        success = yield from self.goto_position(
-            next_translation_target, orientation_target, self._articulation, self._rmpflow, timeout=200
-        )
-
-        next_translation_target = np.array([0.4, 0.4, 0.25])
-        self._target.set_world_pose(next_translation_target, orientation_target)
-
-        success = yield from self.goto_position(
-            next_translation_target, orientation_target, self._articulation, self._rmpflow, timeout=200
-        )
-
-        yield from self.open_gripper_franka(self._articulation)
+        
+        og.Controller.evaluate(self.action_graph1)
+        og.Controller.evaluate(self.action_graph2)
+        og.Controller.evaluate(self.action_graph3)
 
     ################################### Functions
 
