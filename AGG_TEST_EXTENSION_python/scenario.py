@@ -25,6 +25,8 @@ import omni.graph.core as og
 import omni.kit.commands
 from pxr import Gf, Sdf, UsdGeom, UsdLux, UsdPhysics
 import carb
+from omni.isaac.sensor import _sensor
+
 
 class PhotoeyeConveyorScript:
     def __init__(self):
@@ -33,7 +35,9 @@ class PhotoeyeConveyorScript:
         self.sensor_1_path = "/World/Sensors/LightBeam_Sensor"
         self.sensor_2_path = "/World/Sensors/LightBeam_Sensor_01"
         self.sensor_3_path = "/World/Sensors/LightBeam_Sensor_02"
+        self.conveyor_11_path = "/World/Conveyors/ConveyorTrack_11/ConveyorBeltGraph"
 
+        self._ls = _sensor.acquire_lightbeam_sensor_interface()
 
     def load_example_assets(self):
         """Load assets onto the stage and return them so they can be registered with the
@@ -60,12 +64,12 @@ class PhotoeyeConveyorScript:
             "IsaacSensorCreateLightBeamSensor",
             path=self.sensor_1_path,
             parent=None,
-            min_range=0.2,
-            max_range=10.0,
+            min_range=0.02,
+            max_range=2.0,
             translation=Gf.Vec3d(0, 0, 0),
             orientation=Gf.Quatd(1, 0, 0, 0),
             forward_axis=Gf.Vec3d(1, 0, 0),
-            num_rays=5,
+            num_rays=1,
             curtain_length=0.5,
         )
 
@@ -77,12 +81,12 @@ class PhotoeyeConveyorScript:
             "IsaacSensorCreateLightBeamSensor",
             path=self.sensor_2_path,
             parent=None,
-            min_range=0.2,
-            max_range=10.0,
+            min_range=0.20,
+            max_range=2.0,
             translation=Gf.Vec3d(0, 0, 0),
             orientation=Gf.Quatd(1, 0, 0, 0),
             forward_axis=Gf.Vec3d(1, 0, 0),
-            num_rays=5,
+            num_rays=1,
             curtain_length=0.5,
         )
 
@@ -94,12 +98,12 @@ class PhotoeyeConveyorScript:
             "IsaacSensorCreateLightBeamSensor",
             path=self.sensor_3_path,
             parent=None,
-            min_range=0.2,
-            max_range=10.0,
+            min_range=0.02,
+            max_range=2.0,
             translation=Gf.Vec3d(0, 0, 0),
             orientation=Gf.Quatd(1, 0, 0, 0),
             forward_axis=Gf.Vec3d(1, 0, 0),
-            num_rays=5,
+            num_rays=1,
             curtain_length=0.5,
         )
 
@@ -170,6 +174,27 @@ class PhotoeyeConveyorScript:
             },
         )
 
+
+        self.conveyor_11_graph = og.get_graph_by_path(self.conveyor_11_path)
+
+        og.Controller.edit(self.conveyor_11_graph,
+                   {
+                og.Controller.Keys.CREATE_NODES: [
+                    ("WriteVariable", "omni.graph.core.WriteVariable"),
+                ],
+                og.Controller.Keys.SET_VALUES: [
+                    ("WriteVariable.inputs:graph", "/World/Conveyors/ConveyorTrack_11/ConveyorBeltGraph"),
+                    ("WriteVariable.inputs:variableName", "Velocity"),
+                    ("WriteVariable.inputs:value", 2.0)
+                ]
+                   }     
+        )
+
+
+        og.Controller.connect("/World/Conveyors/ConveyorTrack_11/ConveyorBeltGraph/OnTick.outputs:tick", "/World/Conveyors/ConveyorTrack_11/ConveyorBeltGraph/WriteVariable.inputs:execIn")
+
+
+
         # Create a script generator to execute my_script().
         self._script_generator = self.my_script()
 
@@ -203,73 +228,42 @@ class PhotoeyeConveyorScript:
         except StopIteration:
             return True
 
-    def my_script(self):
-        
-        og.Controller.evaluate(self.action_graph1)
-        og.Controller.evaluate(self.action_graph2)
-        og.Controller.evaluate(self.action_graph3)
+    def my_script(self):    
+
+        yield from self.check_sensor()
+
+
+
 
     ################################### Functions
 
-    def goto_position(
-        self,
-        translation_target,
-        orientation_target,
-        articulation,
-        rmpflow,
-        translation_thresh=0.01,
-        orientation_thresh=0.1,
-        timeout=500,
-    ):
-        """
-        Use RMPflow to move a robot Articulation to a desired task-space position.
-        Exit upon timeout or when end effector comes within the provided threshholds of the target pose.
-        """
+    def check_sensor(self):
+        hit_flag = False
+        while True:
+            print("Checking Sensor")
+            print(self._ls.get_beam_hit_data(self.sensor_1_path).astype(bool))
+            og.Controller.attribute("/World/Conveyors/ConveyorTrack_11/ConveyorBeltGraph/WriteVariable.inputs:value").set(2.0)
 
-        articulation_motion_policy = ArticulationMotionPolicy(articulation, rmpflow, 1 / 60)
-        rmpflow.set_end_effector_target(translation_target, orientation_target)
+            #existing_value = og.Controller.attribute("/World/Conveyors/ConveyorTrack_11/ConveyorBeltGraph/write_variable.value").get()
+            #print(existing_value)
+            if self._ls.get_beam_hit_data(self.sensor_1_path).astype(bool) == True:
+                print("beam hit!")
+                # Assuming you have graph_context available in your script: https://docs.omniverse.nvidia.com/kit/docs/omni.graph/latest/omni.graph.core/omni.graph.core.Graph.html#omni.graph.core.Graph.get_context
+                
 
-        for i in range(timeout):
-            ee_trans, ee_rot = rmpflow.get_end_effector_pose(
-                articulation_motion_policy.get_active_joints_subset().get_joint_positions()
-            )
+                if hit_flag == False:
+                    initial_time = og.Controller.attribute("/World/Conveyors/ConveyorTrack_11/ConveyorBeltGraph/OnTick.outputs:time").get()
+                    print(f"Initial time: {initial_time}")
+                    hit_flag = True
+                #og.Controller.attribute("/World/Conveyors/ConveyorTrack_11/ConveyorBeltGraph/WriteVariable.inputs:value").set(0.0)
 
-            trans_dist = distance_metrics.weighted_translational_distance(ee_trans, translation_target)
-            rotation_target = quats_to_rot_matrices(orientation_target)
-            rot_dist = distance_metrics.rotational_distance_angle(ee_rot, rotation_target)
+                
+            elif hit_flag == True:
+                hit_flag = False
+                final_time = og.Controller.attribute("/World/Conveyors/ConveyorTrack_11/ConveyorBeltGraph/OnTick.outputs:time").get()
+                print(f"Final time: {final_time}")
+                belt_velocity = og.Controller.attribute("/World/Conveyors/ConveyorTrack_11/ConveyorBeltGraph/read_speed.outputs:value").get()
+                cube_length = (final_time - initial_time)*belt_velocity
+                print(f"Cube length: {cube_length}")
 
-            done = trans_dist < translation_thresh and rot_dist < orientation_thresh
-
-            if done:
-                return True
-
-            rmpflow.update_world()
-            action = articulation_motion_policy.get_next_articulation_action(1 / 60)
-            articulation.apply_action(action)
-
-            # If not done on this frame, yield() to pause execution of this function until
-            # the next frame.
             yield ()
-
-        return False
-
-    def open_gripper_franka(self, articulation):
-        open_gripper_action = ArticulationAction(np.array([0.04, 0.04]), joint_indices=np.array([7, 8]))
-        articulation.apply_action(open_gripper_action)
-
-        # Check in once a frame until the gripper has been successfully opened.
-        while not np.allclose(articulation.get_joint_positions()[7:], np.array([0.04, 0.04]), atol=0.001):
-            yield ()
-
-        return True
-
-    def close_gripper_franka(self, articulation, close_position=np.array([0, 0]), atol=0.001):
-        # To close around the cube, different values are passed in for close_position and atol
-        open_gripper_action = ArticulationAction(np.array(close_position), joint_indices=np.array([7, 8]))
-        articulation.apply_action(open_gripper_action)
-
-        # Check in once a frame until the gripper has been successfully closed.
-        while not np.allclose(articulation.get_joint_positions()[7:], np.array(close_position), atol=atol):
-            yield ()
-
-        return True
