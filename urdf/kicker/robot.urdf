@@ -1,0 +1,58 @@
+<robot name="onshape">
+<link name="base_link">
+<visual>
+<origin xyz="4.336808689942017736e-19 -1.1384122811097796557e-18 0" rpy="0 -0 0" />
+<geometry>
+<mesh filename="package://urdf/kicker/kicker_base.stl"/>
+</geometry>
+<material name="kicker_base_material">
+<color rgba="0.61568627450980395466 0.81176470588235294379 0.92941176470588238168 1.0"/>
+</material>
+</visual>
+<collision>
+<origin xyz="4.336808689942017736e-19 -1.1384122811097796557e-18 0" rpy="0 -0 0" />
+<geometry>
+<mesh filename="package://urdf/kicker/kicker_base.stl"/>
+</geometry>
+</collision>
+<inertial>
+<origin xyz="0 0 0" rpy="0 0 0"/>
+<mass value="0" />
+<inertia ixx="0" ixy="0"  ixz="0" iyy="0" iyz="0" izz="0" />
+</inertial>
+</link>
+
+<link name="kicker_link">
+<visual>
+<origin xyz="0 1.530808498934191586e-18 0.025000000000000001388" rpy="3.141592653589793116 -0 0" />
+<geometry>
+<mesh filename="package://urdf/kicker/kicker_arm.stl"/>
+</geometry>
+<material name="kicker_arm_material">
+<color rgba="0.64705882352941179736 0.64705882352941179736 0.64705882352941179736 1.0"/>
+</material>
+</visual>
+<collision>
+<origin xyz="0 1.530808498934191586e-18 0.025000000000000001388" rpy="3.141592653589793116 -0 0" />
+<geometry>
+<mesh filename="package://urdf/kicker/kicker_arm.stl"/>
+</geometry>
+</collision>
+<inertial>
+<origin xyz="0 0 0" rpy="0 0 0"/>
+<mass value="0" />
+<inertia ixx="0" ixy="0"  ixz="0" iyy="0" iyz="0" izz="0" />
+</inertial>
+</link>
+
+<joint name="kicker_joint" type="revolute">
+<origin xyz="4.336808689942017736e-19 3.9239621782441154511e-19 0.025000000000000001388" rpy="3.141592653589793116 -0 0" />
+<parent link="base_link" />
+<child link="kicker_link" />
+<axis xyz="0 0 1"/>
+<limit effort="1" velocity="20" lower="0" upper="1.0471975511965976313"/>
+<joint_properties friction="0.0"/>
+</joint>
+
+
+</robot>
