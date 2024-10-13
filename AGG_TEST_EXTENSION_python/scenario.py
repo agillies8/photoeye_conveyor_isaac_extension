@@ -26,6 +26,10 @@ import omni.kit.commands
 from pxr import Gf, Sdf, UsdGeom, UsdLux, UsdPhysics
 import carb
 from omni.isaac.sensor import _sensor
+import random
+from omni.isaac.core.materials import PhysicsMaterial
+
+#import random
 
 
 class PhotoeyeConveyorScript:
@@ -185,7 +189,7 @@ class PhotoeyeConveyorScript:
                 og.Controller.Keys.SET_VALUES: [
                     ("WriteVariable.inputs:graph", "/World/Conveyors/ConveyorTrack_11/ConveyorBeltGraph"),
                     ("WriteVariable.inputs:variableName", "Velocity"),
-                    ("WriteVariable.inputs:value", 2.0)
+                    ("WriteVariable.inputs:value", 1.0)
                 ]
                    }     
         )
@@ -228,42 +232,149 @@ class PhotoeyeConveyorScript:
         except StopIteration:
             return True
 
-    def my_script(self):    
+    def my_script(self):   
+        robot_prim_path = "/World/Kickers/kicker/"
 
-        yield from self.check_sensor()
+        self.articulation = Articulation(prim_path=robot_prim_path)
+        print(f"Articulation joints: {self.articulation.dof_names}")
+
+
+        sensor_1 = SensorChecker(self._ls, self.sensor_1_path)
+        sensor_2 = SensorChecker(self._ls, self.sensor_2_path)
+        sensor_3 = SensorChecker(self._ls, self.sensor_3_path)
+        spawner = BoxSpawner()
+
+        open_kicker = ArticulationAction(joint_positions=np.array([45.0]), joint_indices=np.array([0]))
+
+        while True:
+
+            sensor_1.check_sensor_once()
+            sensor_2.check_sensor_once()
+            sensor_3.check_sensor_once()
+            #print(sensor_1.cube_length)
+
+            if 0.2< sensor_1.cube_length < 0.6:
+                print(f"first gate triggered. Box length: {sensor_1.cube_length}")
+                self.articulation.apply_action(open_kicker)
+                sensor_1.update_cube_length(0.0)
+
+
+
+
+
+            spawner.spawn_box_once()
+
+            yield()
 
 
 
 
     ################################### Functions
 
-    def check_sensor(self):
-        hit_flag = False
+class SensorChecker:
+    def __init__(self, ls, sensor_1_path):
+        self._ls = ls
+        self.sensor_1_path = sensor_1_path
+        self.hit_flag = False
+        self.initial_time = None
+        self.cube_length = 0.0
+
+    # This method runs one iteration of the check_sensor loop
+    def check_sensor_once(self):
+        
+        # Get beam hit data
+        beam_hit_data = self._ls.get_beam_hit_data(self.sensor_1_path).astype(bool)
+
+        # Set conveyor belt speed
+        #og.Controller.attribute("/World/Conveyors/ConveyorTrack_11/ConveyorBeltGraph/WriteVariable.inputs:value").set(2.0)
+
+        # Check if beam hit
+        if beam_hit_data == True:
+            print("Beam hit!")
+
+            if self.hit_flag == False:
+                # Capture the initial time when the beam was first hit
+                self.initial_time = og.Controller.attribute("/World/Conveyors/ConveyorTrack_11/ConveyorBeltGraph/OnTick.outputs:time").get()
+                self.hit_flag = True
+            
+            current_time = og.Controller.attribute("/World/Conveyors/ConveyorTrack_11/ConveyorBeltGraph/OnTick.outputs:time").get()
+            belt_velocity = og.Controller.attribute("/World/Conveyors/ConveyorTrack_11/ConveyorBeltGraph/read_speed.outputs:value").get()
+            current_length = (current_time - self.initial_time) * belt_velocity
+            print(f"Measuring:{current_length}")
+
+        elif self.hit_flag == True:
+            # Reset the flag when the beam hit ends
+            self.hit_flag = False
+            # Capture the final time when the beam hit ends
+            final_time = og.Controller.attribute("/World/Conveyors/ConveyorTrack_11/ConveyorBeltGraph/OnTick.outputs:time").get()
+            
+            # Get the belt velocity and calculate cube length
+            belt_velocity = og.Controller.attribute("/World/Conveyors/ConveyorTrack_11/ConveyorBeltGraph/read_speed.outputs:value").get()
+            self.cube_length = (final_time - self.initial_time) * belt_velocity
+            print(f"Cube length: {self.cube_length}")
+    
+    # This method can simulate continuous monitoring if needed
+    def check_sensor_continuously(self):
         while True:
-            print("Checking Sensor")
-            print(self._ls.get_beam_hit_data(self.sensor_1_path).astype(bool))
-            og.Controller.attribute("/World/Conveyors/ConveyorTrack_11/ConveyorBeltGraph/WriteVariable.inputs:value").set(2.0)
+            self.check_sensor_once()
+            yield ()  # To maintain generator compatibility
 
-            #existing_value = og.Controller.attribute("/World/Conveyors/ConveyorTrack_11/ConveyorBeltGraph/write_variable.value").get()
-            #print(existing_value)
-            if self._ls.get_beam_hit_data(self.sensor_1_path).astype(bool) == True:
-                print("beam hit!")
-                # Assuming you have graph_context available in your script: https://docs.omniverse.nvidia.com/kit/docs/omni.graph/latest/omni.graph.core/omni.graph.core.Graph.html#omni.graph.core.Graph.get_context
-                
+    def update_cube_length(self, new_length):
+        self.cube_length = new_length
+        print(f"Cube length updated to: {self.cube_length}")
 
-                if hit_flag == False:
-                    initial_time = og.Controller.attribute("/World/Conveyors/ConveyorTrack_11/ConveyorBeltGraph/OnTick.outputs:time").get()
-                    print(f"Initial time: {initial_time}")
-                    hit_flag = True
-                #og.Controller.attribute("/World/Conveyors/ConveyorTrack_11/ConveyorBeltGraph/WriteVariable.inputs:value").set(0.0)
+class BoxSpawner:
+    def __init__(self):
+        # Initialize the box types with dimensions and colors
+        self.box_types = [
+            {'dims': np.array([0.4, 0.4, 0.4]), 'color': np.array([1.0, 0.0, 0.0])},  # Red Box
+            {'dims': np.array([0.4, 0.4, 0.4]), 'color': np.array([0.0, 1.0, 0.0])},  # Green Box
+            {'dims': np.array([0.4, 0.4, 0.4]), 'color': np.array([0.0, 0.0, 1.0])}   # Blue Box
+        ]
+        
+        # Initialize the initial time
+        self.initial_time = og.Controller.attribute("/World/Conveyors/ConveyorTrack_11/ConveyorBeltGraph/OnTick.outputs:time").get()
 
-                
-            elif hit_flag == True:
-                hit_flag = False
-                final_time = og.Controller.attribute("/World/Conveyors/ConveyorTrack_11/ConveyorBeltGraph/OnTick.outputs:time").get()
-                print(f"Final time: {final_time}")
-                belt_velocity = og.Controller.attribute("/World/Conveyors/ConveyorTrack_11/ConveyorBeltGraph/read_speed.outputs:value").get()
-                cube_length = (final_time - initial_time)*belt_velocity
-                print(f"Cube length: {cube_length}")
+        #init box count:
+        self.box_count = 1
+        self.base_path = "/World/Objects/spawn_point/Cube"
 
-            yield ()
+    # Method to run one iteration of the box spawn loop
+    def spawn_box_once(self):
+        # Get the current time
+        current_time = og.Controller.attribute("/World/Conveyors/ConveyorTrack_11/ConveyorBeltGraph/OnTick.outputs:time").get()
+        
+        # Check if more than 3 seconds have passed since the last box was spawned
+        if (current_time - self.initial_time) > 2.0:
+            # Update the initial time to the current time
+            self.initial_time = og.Controller.attribute("/World/Conveyors/ConveyorTrack_11/ConveyorBeltGraph/OnTick.outputs:time").get()
+            
+            # Select a random box type from the list
+            selected_box = random.choice(self.box_types)
+            physics_material="/World/PhysicsMaterial"
+
+            p_path = f"{self.base_path}_{self.box_count}"
+            self.box_count +=1
+
+            cube_material = PhysicsMaterial(physics_material)
+            # Spawn the dynamic cuboid with the chosen box type's dimensions and color
+            prim = DynamicCuboid(prim_path=p_path,
+                                    scale=selected_box['dims'], 
+                                    color=selected_box['color'], 
+                                    mass=1.0,
+                                    physics_material=cube_material)
+            print(f"Spawned a box with dims: {selected_box['dims']} and color: {selected_box['color']}")
+
+    # Generator-style continuous spawner (optional, if you want to use it as a generator)
+    def spawn_box_continuously(self):
+        while True:
+            self.spawn_box_once()
+            yield ()  # To maintain compatibility with generator functions if needed
+
+
+
+            
+        
+
+        
+

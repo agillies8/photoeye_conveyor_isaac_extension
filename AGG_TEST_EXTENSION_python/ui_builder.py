@@ -207,6 +207,21 @@ class UIBuilder:
                         )
 
 
+        #spawn box frame. Bailing on this for now, look at types of buttons to pick up this thread: https://docs.omniverse.nvidia.com/py/isaacsim/source/extensions/omni.isaac.ui/docs/index.html?highlight=load%20button#omni.isaac.ui.element_wrappers.ui_widget_wrappers.Button
+        """         spawn_box_frame = CollapsableFrame("Spawn box")
+
+                with spawn_box_frame:
+                    with ui.VStack(style=get_style(), spacing=5, height=0):
+                        self._spawn_box_btn = StateButton(
+                            "Spawn Box",
+                            "RUN",
+                            "STOP",
+                            on_a_click_fn=self._spawn_box,
+                            on_b_click_fn=self._on_run_scenario_b_text,
+                            physics_callback_fn=self._update_scenario,
+                        )
+                        self._scenario_state_btn.enabled = False
+                        self.wrapped_ui_elements.append(self._scenario_state_btn)   """
     ######################################################################################
     # Functions Below This Point Support The Provided Example And Can Be Deleted/Replaced
     ######################################################################################
