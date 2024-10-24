@@ -1,4 +1,7 @@
 # Usage
 
-To enable this extension, run Isaac Sim with the flags --ext-folder {path_to_ext_folder} --enable {ext_directory_name}
+Read more about this at my project page here:
+
+https://www.notion.so/Isaac-sim-photoeye-conveyor-example-109c986e685f80778453d518a9ca556e
+
 
